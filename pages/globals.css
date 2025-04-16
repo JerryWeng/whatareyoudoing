@@ -1,0 +1,23 @@
+:root {
+  --bg-color: #caf0f8;
+  --btn-color: #90e0ef;
+  --txt-color: #333;
+}
+
+body {
+  width: 500px;
+  font-family: Arial, sans-serif;
+  background-color: var(--bg-color);
+  margin: 0;
+}
+
+button {
+  cursor: pointer;
+  padding: 8px 12px;
+  background: var(--btn-color);
+  border: none;
+  border-radius: 4px;
+  color: var(--txt-color);
+  font-size: 14px;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}

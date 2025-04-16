@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>WhatAreYouDoing</title>
+    <link rel="shortcut icon" href="#" />
+    <link rel="stylesheet" href="../globals.css" />
+    <link rel="stylesheet" href="css/popup.css" />
+    <link rel="stylesheet" href="css/stats.css" />
+    <link rel="stylesheet" href="css/piechart.css" />
+    <script src="../../lib/chart.umd.js" type="module"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="subcontainer">
+        <div class="title">
+          <div class="logo">
+            <img src="../../assets/icons/icon16.png" alt="Logo" />
+          </div>
+          <div class="logoName">WhatAreYouDoing</div>
+        </div>
+        <div class="options">
+          <button id="analyticsBtn">
+            <img src="../../assets/icons/analytics.png" alt="analytics" />
+          </button>
+          <button id="settingsBtn">
+            <img src="../../assets/icons/settings.png" alt="settings gear" />
+          </button>
+        </div>
+      </div>
+      <div class="categories">
+        <button id="todayBtn">Today</button>
+        <button id="totalBtn">Total</button>
+      </div>
+      <div id="chart-container">
+        <canvas id="pieChart"></canvas>
+      </div>
+      <div id="infoControls">
+        <button id="sortBtn">Sort</button>
+      </div>
+      <div id="infoContainer">
+        <!-- Stats will be inserted here -->
+      </div>
+    </div>
+    <script src="popup.js"></script>
+  </body>
+</html>
