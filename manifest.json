@@ -6,7 +6,8 @@
   "permissions": ["storage", "tabs", "webNavigation", "alarms"],
   "host_permissions": ["*://*/*"],
   "background": {
-    "service_worker": "scripts/background/background.js"
+    "service_worker": "scripts/background/background.js",
+    "type": "module"
   },
   "action": {
     "default_popup": "pages/popup/popup.html",

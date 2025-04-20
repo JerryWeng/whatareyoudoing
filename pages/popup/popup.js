@@ -11,6 +11,14 @@ document.addEventListener("DOMContentLoaded", function () {
   const sortBtn = document.getElementById("sortBtn");
   const infoContainer = document.getElementById("infoContainer");
 
+  function getLocalDateString() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, "0");
+    const day = String(now.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
   function setCategoryActive(category) {
     allCategories.forEach((button) => {
       button.classList.remove("active");
@@ -19,10 +27,8 @@ document.addEventListener("DOMContentLoaded", function () {
 
     if (category === todayBtn) {
       displayTodayStats();
-      createPieChart("today");
     } else if (category === totalBtn) {
       displayTotalStats();
-      createPieChart("total");
     }
   }
 
@@ -63,31 +69,149 @@ document.addEventListener("DOMContentLoaded", function () {
     return timeDisplay;
   }
 
-  function displayTodayStats() {
-    const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+  function createPieChart(category) {
+    const chartCanvas = document.getElementById("pieChart");
+    let existingChart = Chart.getChart(chartCanvas);
 
-    // Get both time and session data
-    chrome.storage.local.get(["siteTime", "siteSessions"], (result) => {
-      let todayTimeData =
-        result.siteTime && result.siteTime[today] ? result.siteTime[today] : {};
-      let todaySessionData =
-        result.siteSessions && result.siteSessions[today]
-          ? result.siteSessions[today]
-          : {};
+    // Destroy existing chart if it exists
+    if (existingChart) {
+      existingChart.destroy();
+    }
+
+    chrome.storage.local.get(["siteInfo"], (result) => {
+      let data = {};
+      const siteInfo = result.siteInfo || {};
+
+      if (category === "today") {
+        const today = getLocalDateString();
+        data =
+          siteInfo[today] && siteInfo[today].time ? siteInfo[today].time : {};
+      } else if (category === "total") {
+        data = {};
+
+        // Combine data from all days
+        Object.values(siteInfo).forEach((dayData) => {
+          if (dayData.time) {
+            Object.entries(dayData.time).forEach(([domain, seconds]) => {
+              data[domain] = (data[domain] || 0) + seconds;
+            });
+          }
+        });
+      }
+
+      const sortedSites = Object.entries(data)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10); // top 10 sites
+
+      const labels = sortedSites.map(([domain]) => domain);
+      const values = sortedSites.map(([, seconds]) => seconds);
+
+      const backgroundColors = [
+        "rgba(255, 99, 132, 0.8)",
+        "rgba(54, 162, 235, 0.8)",
+        "rgba(255, 206, 86, 0.8)",
+        "rgba(75, 192, 192, 0.8)",
+        "rgba(153, 102, 255, 0.8)",
+        "rgba(255, 159, 64, 0.8)",
+        "rgba(201, 203, 207, 0.8)",
+        "rgba(255, 99, 255, 0.8)",
+        "rgba(99, 255, 132, 0.8)",
+        "rgba(132, 99, 255, 0.8)",
+      ];
+
+      // Only create chart if we have data and canvas exists
+      if (chartCanvas && sortedSites.length > 0) {
+        const ctx = chartCanvas.getContext("2d");
+        new Chart(ctx, {
+          type: "pie",
+          data: {
+            labels: labels,
+            datasets: [
+              {
+                data: values,
+                backgroundColor: backgroundColors,
+                borderWidth: 1,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            layout: {
+              padding: 0,
+            },
+            plugins: {
+              legend: {
+                position: "right",
+                labels: {
+                  boxWidth: 12,
+                  font: {
+                    size: 10,
+                  },
+                  padding: 8,
+                  color: "#666",
+                },
+              },
+              tooltip: {
+                callbacks: {
+                  label: function (context) {
+                    const seconds = context.raw;
+                    const hours = Math.floor(seconds / 3600);
+                    const remainingSeconds = seconds % 3600;
+                    const minutes = Math.floor(remainingSeconds / 60);
+                    const secs = remainingSeconds % 60;
+
+                    let timeDisplay = "";
+                    if (hours > 0) {
+                      timeDisplay += `${hours}h `;
+                    }
+                    if (minutes > 0 || hours > 0) {
+                      timeDisplay += `${minutes}m `;
+                    }
+                    timeDisplay += `${secs}s`;
+
+                    return `${context.label}: ${timeDisplay}`;
+                  },
+                },
+              },
+            },
+          },
+        });
+      } else {
+        const chartContainer = document.getElementById("chart-container");
+        if (chartContainer) {
+          chartContainer.innerHTML =
+            '<div class="no-data">No data to display in chart.</div>';
+        }
+      }
+    });
+  }
+
+  function displayTodayStats() {
+    createPieChart("today");
+    const today = getLocalDateString();
+
+    // Get data from the new structure
+    chrome.storage.local.get(["siteInfo"], (result) => {
+      // Check if we have data for today
+      let todayData =
+        result.siteInfo && result.siteInfo[today]
+          ? result.siteInfo[today]
+          : { time: {}, sessions: {} };
 
       // Create combined data with both time and sessions
       let combinedData = {};
 
       // Add all domains from time data
-      Object.entries(todayTimeData).forEach(([domain, seconds]) => {
+      Object.entries(todayData.time || {}).forEach(([domain, seconds]) => {
         combinedData[domain] = {
           time: seconds,
-          sessions: todaySessionData[domain] || 0,
+          sessions: (todayData.sessions && todayData.sessions[domain]) || 0,
         };
       });
 
       // Add any domains that might only have session data
-      Object.entries(todaySessionData).forEach(([domain, sessions]) => {
+      Object.entries(todayData.sessions || {}).forEach(([domain, sessions]) => {
         if (!combinedData[domain]) {
           combinedData[domain] = {
             time: 0,
@@ -114,7 +238,7 @@ document.addEventListener("DOMContentLoaded", function () {
           return `
           <div class="stats-item">
             <div class="site-info">
-              <img src="https://${domain}/favicon.ico" alt="${domain}" />
+              <img src="https://${domain}/favicon.ico" alt="${domain}" class="site-favicon" data-domain="${domain}" />
               <span class="site-name">${domain}</span>
             </div>
             <div class="time-info">
@@ -128,7 +252,7 @@ document.addEventListener("DOMContentLoaded", function () {
         })
         .join("");
 
-      document.getElementById("infoContainer").innerHTML =
+      infoContainer.innerHTML =
         infoHTML ||
         '<div class="no-data">No browsing data for today yet.</div>';
 
@@ -137,25 +261,29 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 
   function displayTotalStats() {
-    chrome.storage.local.get(["siteTime", "siteSessions"], (result) => {
-      let siteTime = result.siteTime || {};
-      let siteSessions = result.siteSessions || {};
+    createPieChart("total");
+    chrome.storage.local.get(["siteInfo"], (result) => {
+      let siteInfo = result.siteInfo || {};
 
       let totalTimeData = {};
       let totalSessionData = {};
 
-      // Combine time data from all days
-      Object.values(siteTime).forEach((dayData) => {
-        Object.entries(dayData).forEach(([domain, seconds]) => {
-          totalTimeData[domain] = (totalTimeData[domain] || 0) + seconds;
-        });
-      });
+      // Combine time and session data from all days
+      Object.values(siteInfo).forEach((dayData) => {
+        // Process time data
+        if (dayData.time) {
+          Object.entries(dayData.time).forEach(([domain, seconds]) => {
+            totalTimeData[domain] = (totalTimeData[domain] || 0) + seconds;
+          });
+        }
 
-      // Combine session data from all days
-      Object.values(siteSessions).forEach((dayData) => {
-        Object.entries(dayData).forEach(([domain, sessions]) => {
-          totalSessionData[domain] = (totalSessionData[domain] || 0) + sessions;
-        });
+        // Process session data
+        if (dayData.sessions) {
+          Object.entries(dayData.sessions).forEach(([domain, sessions]) => {
+            totalSessionData[domain] =
+              (totalSessionData[domain] || 0) + sessions;
+          });
+        }
       });
 
       // Create combined data
@@ -197,7 +325,7 @@ document.addEventListener("DOMContentLoaded", function () {
           return `
           <div class="stats-item">
             <div class="site-info">
-              <img src="https://${domain}/favicon.ico" alt="${domain}" />
+              <img src="https://${domain}/favicon.ico" alt="${domain}" class="site-favicon" data-domain="${domain}" />
               <span class="site-name">${domain}</span>
             </div>
             <div class="time-info">
@@ -216,122 +344,6 @@ document.addEventListener("DOMContentLoaded", function () {
         '<div class="no-data">No browsing data available yet.</div>';
 
       setupImageErrorHandlers();
-    });
-  }
-
-  function createPieChart(category) {
-    const chartCanvas = document.getElementById("pieChart");
-    let existingChart = Chart.getChart(chartCanvas);
-
-    // Destroy existing chart if it exists
-    if (existingChart) {
-      existingChart.destroy();
-    }
-
-    chrome.storage.local.get(["siteTime"], (result) => {
-      let data = {};
-
-      if (category === "today") {
-        const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
-        data =
-          result.siteTime && result.siteTime[today]
-            ? result.siteTime[today]
-            : {};
-      } else if (category === "total") {
-        let siteTime = result.siteTime || {};
-        data = {};
-
-        // Combine data from all days
-        Object.values(siteTime).forEach((dayData) => {
-          Object.entries(dayData).forEach(([domain, seconds]) => {
-            data[domain] = (data[domain] || 0) + seconds;
-          });
-        });
-      }
-
-      const sortedSites = Object.entries(data)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 10); // top 10 sites
-
-      const labels = sortedSites.map(([domain]) => domain);
-      const values = sortedSites.map(([, seconds]) => seconds);
-
-      const backgroundColors = [
-        "rgba(255, 99, 132, 0.8)",
-        "rgba(54, 162, 235, 0.8)",
-        "rgba(255, 206, 86, 0.8)",
-        "rgba(75, 192, 192, 0.8)",
-        "rgba(153, 102, 255, 0.8)",
-        "rgba(255, 159, 64, 0.8)",
-        "rgba(201, 203, 207, 0.8)",
-        "rgba(255, 99, 255, 0.8)",
-        "rgba(99, 255, 132, 0.8)",
-        "rgba(132, 99, 255, 0.8)",
-      ];
-
-      // Create the chart
-      const ctx = chartCanvas.getContext("2d");
-      new Chart(ctx, {
-        type: "pie",
-        data: {
-          labels: labels,
-          datasets: [
-            {
-              data: values,
-              backgroundColor: backgroundColors,
-              borderWidth: 1,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          layout: {
-            padding: 0,
-          },
-          plugins: {
-            legend: {
-              position: "right",
-              labels: {
-                boxWidth: 12,
-                font: {
-                  size: 10,
-                },
-                padding: 8,
-                color: "#666",
-              },
-            },
-            tooltip: {
-              callbacks: {
-                label: function (context) {
-                  const seconds = context.raw;
-                  const hours = Math.floor(seconds / 3600);
-                  const remainingSeconds = seconds % 3600;
-                  const minutes = Math.floor(remainingSeconds / 60);
-                  const secs = remainingSeconds % 60;
-
-                  let timeDisplay = "";
-                  if (hours > 0) {
-                    timeDisplay += `${hours}h `;
-                  }
-                  if (minutes > 0 || hours > 0) {
-                    timeDisplay += `${minutes}m `;
-                  }
-                  timeDisplay += `${secs}s`;
-
-                  return `${context.label}: ${timeDisplay}`;
-                },
-              },
-            },
-          },
-        },
-      });
-
-      // Show a message if no data
-      if (sortedSites.length === 0) {
-        document.getElementById("chart-container").innerHTML =
-          '<div class="no-data">No data to display in chart.</div>';
-      }
     });
   }
 
@@ -358,5 +370,11 @@ document.addEventListener("DOMContentLoaded", function () {
     } else if (currentCategory === totalBtn) {
       displayTotalStats();
     }
+  });
+
+  chrome.runtime.sendMessage({ action: "saveTime" }, function (response) {
+    console.log("Background script saved current tab information");
+
+    displayTodayStats();
   });
 });

@@ -1,68 +1,34 @@
-// Object to store the current active tab information
 let currentTab = {
   id: null,
-  url: null,
+  intervalId: null,
   domain: null,
-  startTime: null,
+  currentDate: null,
+  timeSpent: 0,
 };
 
-// Track when the user changes tabs or windows
-chrome.tabs.onActivated.addListener((activeInfo) => {
-  // When a tab becomes active, get its details
-  chrome.tabs.get(activeInfo.tabId, (tab) => {
-    // Process tab change
-    handleTabChange(tab);
-  });
-});
-
-// Track when a tab's URL changes
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-  // Only process if this is the active tab and the URL has changed
-  if (changeInfo.status === "complete" && tab.active) {
-    handleTabChange(tab);
-  }
-});
-
-// Handle when a tab becomes active or changes URL
-function handleTabChange(tab) {
-  // First, record time for the previous tab if there was one
-  if (currentTab.id !== null) {
-    const timeSpent = Math.round((Date.now() - currentTab.startTime) / 1000); // in seconds
-
-    // Only record if more than 1 second was spent
-    if (timeSpent > 1 && currentTab.domain) {
-      updateTimeForDomain(currentTab.domain, timeSpent);
-    }
-  }
-
-  // Now set current tab info
-  if (tab.url && tab.url.startsWith("http")) {
-    const domain = extractDomain(tab.url);
-
-    // If the domain has changed, count this as a new session
-    if (domain !== currentTab.domain) {
-      incrementSessionForDomain(domain);
-    }
-
-    currentTab = {
-      id: tab.id,
-      url: tab.url,
-      domain: domain,
-      startTime: Date.now(),
-    };
-  } else {
-    // Not a website (e.g., new tab, settings page)
-    currentTab = {
-      id: null,
-      url: null,
-      domain: null,
-      startTime: null,
-    };
-  }
+// function to get the local timezone
+function getLocalDateString() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
-// Extract domain from URL
-function extractDomain(url) {
+// function to start tracking tab
+function initialize() {
+  currentTab.currentDate = getLocalDateString();
+
+  // Check for active tab and start tracking
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    if (tabs.length > 0) {
+      trackTab(tabs[0]);
+    }
+  });
+}
+
+// function to get domain from url
+function getDomain(url) {
   try {
     const urlObj = new URL(url);
     return urlObj.hostname;
@@ -71,145 +37,196 @@ function extractDomain(url) {
   }
 }
 
-// Increment the session count for a domain
-function incrementSessionForDomain(domain) {
-  if (!domain) return;
+// function to track time spent on the current tab (seconds)
+function trackTab(tab) {
+  if (currentTab.intervalId) {
+    clearInterval(currentTab.intervalId);
+  }
 
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+  currentTab.id = tab.id;
+  currentTab.domain = getDomain(tab.url);
+  currentTab.timeSpent = 0;
 
-  // Get existing data
-  chrome.storage.local.get(["siteSessions"], (result) => {
-    let siteSessions = result.siteSessions || {};
+  currentTab.intervalId = setInterval(() => {
+    // check if date has changed if yes, save the current tab time and reset the time
+    const today = getLocalDateString();
 
-    // Initialize if needed
-    if (!siteSessions[today]) {
-      siteSessions[today] = {};
-    }
-
-    // Increment session count
-    if (!siteSessions[today][domain]) {
-      siteSessions[today][domain] = 1;
-    } else {
-      siteSessions[today][domain] += 1;
-      console.log(
-        `New session for ${domain}: ${siteSessions[today][domain]} sessions today`
+    if (today !== currentTab.currentDate) {
+      console.log(`Date changed from ${currentTab.currentDate} to ${today}`);
+      updateInfo(
+        currentTab.domain,
+        currentTab.timeSpent,
+        currentTab.currentDate
       );
+      currentTab.timeSpent = 0;
+      currentTab.currentDate = today;
     }
 
-    // Store updated data
-    chrome.storage.local.set({ siteSessions: siteSessions });
-  });
+    currentTab.timeSpent += 1;
+    console.log(`Timespent: ${currentTab.timeSpent}`);
+  }, 1000);
+
+  console.log(`Now tracking tab: ${tab.id} (${currentTab.domain})`);
 }
 
-// Update time spent for a domain
-function updateTimeForDomain(domain, seconds) {
-  const today = new Date().toISOString().split("T")[0]; // YYYY-MM-DD format
+// function to update both time and session
+function updateInfo(domain, seconds, date) {
+  if (!domain || seconds <= 0) return;
+  const today = date || getLocalDateString();
 
-  // Get existing data with consistent handling
-  chrome.storage.local.get(["siteTime"], (result) => {
-    // Always initialize as an empty object if undefined
-    let siteTime = result.siteTime || {};
+  chrome.storage.local.get(["siteInfo"], (result) => {
+    let siteInfo = result.siteInfo || {};
 
-    // Debug: Log existing dates
-    console.log("Available dates in storage:", Object.keys(siteTime));
-
-    // Initialize today if needed
-    if (!siteTime[today]) {
-      siteTime[today] = {};
+    if (!siteInfo[today]) {
+      siteInfo[today] = {
+        sessions: {},
+        time: {},
+      };
       console.log("Created new entry for today:", today);
     }
 
-    // Add time to domain
-    if (!siteTime[today][domain]) {
-      siteTime[today][domain] = seconds;
+    if (!siteInfo[today].time) {
+      siteInfo[today].time = {};
+    }
+    if (!siteInfo[today].time[domain]) {
+      siteInfo[today].time[domain] = 1;
     } else {
-      siteTime[today][domain] += seconds;
+      console.log(`Old time: ${siteInfo[today].time[domain]}`);
+      siteInfo[today].time[domain] += seconds;
+      console.log(
+        `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
+      );
     }
 
-    // Store updated data
-    chrome.storage.local.set({ siteTime: siteTime }, () => {
-      if (chrome.runtime.lastError) {
-        console.error("Error storing data:", chrome.runtime.lastError);
-      } else {
-        console.log(
-          `Updated time for ${domain} on ${today}: ${siteTime[today][domain]} seconds`
-        );
-      }
-    });
+    if (!siteInfo[today].sessions) {
+      siteInfo[today].sessions = {};
+    }
+    if (!siteInfo[today].sessions[domain]) {
+      siteInfo[today].sessions[domain] = 1;
+    } else {
+      siteInfo[today].sessions[domain] += 1;
+      console.log(
+        `New session for ${domain}: ${siteInfo[today].sessions[domain]} sessions today`
+      );
+    }
+
+    chrome.storage.local.set({ siteInfo: siteInfo });
+    console.log("Updated site time and session:", siteInfo);
   });
 }
 
-// Also track when browser window loses focus
-chrome.windows.onFocusChanged.addListener((windowId) => {
-  if (windowId === chrome.windows.WINDOW_ID_NONE) {
-    // Browser lost focus, record time for current tab
-    if (currentTab.id !== null) {
-      const timeSpent = Math.round((Date.now() - currentTab.startTime) / 1000);
-      if (timeSpent > 1 && currentTab.domain) {
-        updateTimeForDomain(currentTab.domain, timeSpent);
-      }
+// function to update specifically time
+function updateTime(domain, seconds, date) {
+  if (!domain || seconds <= 0) return;
+  const today = date || getLocalDateString();
 
-      // Reset current tab since browser is not in focus
-      currentTab = {
-        id: null,
-        url: null,
-        domain: null,
-        startTime: null,
+  chrome.storage.local.get(["siteInfo"], (result) => {
+    let siteInfo = result.siteInfo || {};
+
+    if (!siteInfo[today]) {
+      siteInfo[today] = {
+        sessions: {},
+        time: {},
       };
+      console.log("Created new entry for today:", today);
     }
+
+    if (!siteInfo[today].time) {
+      siteInfo[today].time = {};
+    }
+    if (!siteInfo[today].time[domain]) {
+      siteInfo[today].time[domain] = 1;
+    } else {
+      siteInfo[today].time[domain] += seconds;
+      console.log(
+        `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
+      );
+    }
+
+    chrome.storage.local.set({ siteInfo: siteInfo });
+    console.log("Updated site time", siteInfo);
+  });
+}
+
+// function to save the current tab information
+function saveInfo() {
+  if (currentTab.domain && currentTab.timeSpent > 0) {
+    updateInfo(currentTab.domain, currentTab.timeSpent, currentTab.currentDate);
+    console.log(
+      `Saved ${currentTab.timeSpent} seconds and session to ${currentTab.domain}`
+    );
+    currentTab.timeSpent = 0;
+  }
+}
+
+// function to save specfically time
+function saveTime() {
+  if (currentTab.domain && currentTab.timeSpent > 0) {
+    updateTime(currentTab.domain, currentTab.timeSpent, currentTab.currentDate);
+    console.log(
+      `Saved ${currentTab.timeSpent} seconds to ${currentTab.domain}`
+    );
+    currentTab.timeSpent = 0;
+  }
+}
+
+// user switches to another tab ("activates" another tab)
+chrome.tabs.onActivated.addListener((activeInfo) => {
+  console.log("Tab activated:", activeInfo.tabId);
+
+  saveInfo();
+  chrome.tabs.get(activeInfo.tabId, (tab) => {
+    console.log("RUNNING");
+    trackTab(tab);
+  });
+});
+
+// user switches to another domain
+chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+  if (currentTab.id === tabId && changeInfo.url) {
+    console.log("Tab URL updated:", tabId, changeInfo.url);
+
+    saveInfo();
+    trackTab(tab);
+  }
+});
+
+// user switches to another chrome window
+chrome.windows.onFocusChanged.addListener((windowId) => {
+  console.log("Window focus changed:", windowId);
+
+  if (windowId === chrome.windows.WINDOW_ID_NONE) {
+    if (currentTab.intervalId) {
+      clearInterval(currentTab.intervalId);
+    }
+    saveInfo();
   } else {
-    // Browser gained focus, get the active tab
     chrome.tabs.query({ active: true, windowId: windowId }, (tabs) => {
       if (tabs.length > 0) {
-        handleTabChange(tabs[0]);
+        trackTab(tabs[0]);
       }
     });
   }
 });
 
-// Add a periodic timer to update time every second for the active tab
-// This ensures continuous tracking even without tab switches
-let periodicUpdateInterval = null;
-
-function startPeriodicUpdates() {
-  // Clear any existing interval first
-  stopPeriodicUpdates();
-
-  // Set a new interval that runs every minute instead of every second
-  periodicUpdateInterval = setInterval(() => {
-    // Only process if we have an active tab being tracked
-    if (currentTab.id !== null && currentTab.domain) {
-      // Calculate time using the EXACT difference from the original startTime
-      const exactTimeSpent = Math.round(
-        (Date.now() - currentTab.startTime) / 1000
-      );
-
-      // Update storage with just this increment (1 second) rather than the full calculated time
-      updateTimeForDomain(currentTab.domain, 1);
-    }
-  }, 1000); // Still run every 1 second
-}
-
-function stopPeriodicUpdates() {
-  if (periodicUpdateInterval !== null) {
-    clearInterval(periodicUpdateInterval);
-    periodicUpdateInterval = null;
+// saves data when the user opens the extension popup
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  console.log("Opened Extension");
+  if (message.action === "saveTime") {
+    saveTime();
+    sendResponse({ success: true });
   }
-}
+  return true; // Keep the message channel open for async response
+});
 
-// Start the periodic updates when the extension initializes
-startPeriodicUpdates();
-
-// Listen for when browser goes to sleep or suspends
+// saves data before the browser closes
 chrome.runtime.onSuspend.addListener(() => {
-  // Make sure we record any final time before the extension is suspended
-  if (currentTab.id !== null && currentTab.domain) {
-    const timeSpent = Math.round((Date.now() - currentTab.startTime) / 1000);
-    if (timeSpent > 0) {
-      updateTimeForDomain(currentTab.domain, timeSpent);
-    }
-  }
+  console.log("Browser is closing, saving data...");
+  saveInfo();
+});
 
-  // Stop the interval
-  stopPeriodicUpdates();
+// starts tracking tabs when chrome starts
+chrome.runtime.onStartup.addListener(() => {
+  console.log("Chrome started up - initializing extension");
+  initialize();
 });
