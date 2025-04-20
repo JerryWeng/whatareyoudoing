@@ -1,0 +1,72 @@
+#controlContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 10px 0 0 0;
+}
+
+#infoControls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 90%;
+}
+
+#sortControls {
+  display: flex;
+  justify-content: space-evenly;
+  cursor: pointer;
+  gap: 8px;
+}
+
+#filterBtn {
+  display: flex;
+  background: var(--btn-color);
+  color: var(--bg-color);
+  padding: 5px 2px 1px 2px;
+  border-radius: 40px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+#filterBtn:hover {
+  background: var(--bg-color);
+  color: var(--btn-color);
+  border: 1px solid var(--btn-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#sortBtn {
+  background: var(--btn-color);
+  color: var(--bg-color);
+  padding: 5px 2px 1px 2px;
+  border-radius: 40px;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+#sortBtn:hover {
+  background: var(--bg-color);
+  color: var(--btn-color);
+  border: 1px solid var(--btn-color);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+#paginationControls {
+  display: flex;
+  justify-content: space-evenly;
+  align-items: center;
+  background: var(--btn-color);
+  border-radius: 55px;
+  padding: 5px;
+  gap: 10px;
+}
+
+.pageControl {
+  background: var(--bg-color);
+  border-radius: 50px;
+  padding: 5px 8px;
+}

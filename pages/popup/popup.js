@@ -1,14 +1,29 @@
 document.addEventListener("DOMContentLoaded", function () {
-  // header buttons
+  // header elements
   const settingsBtn = document.getElementById("settingsBtn");
 
-  // category buttons
+  // category elements
   const todayBtn = document.getElementById("todayBtn");
   const totalBtn = document.getElementById("totalBtn");
   const allCategories = [todayBtn, totalBtn];
 
+  // sort elements
+  let filterBy = "time";
   let sortOrder = "descending";
   const sortBtn = document.getElementById("sortBtn");
+  const filterBtn = document.getElementById("filterBtn");
+
+  // pagination elements
+  const prevPageBtn = document.getElementById("prevPage");
+  const nextPageBtn = document.getElementById("nextPage");
+  const pageNumberDisplay = document.getElementById("pageNumber");
+
+  // pagination settings
+  const itemsPerPage = 4;
+  let currentPage = 1;
+  let totalPages = 1;
+  let allSites = [];
+
   const infoContainer = document.getElementById("infoContainer");
 
   function getLocalDateString() {
@@ -24,21 +39,12 @@ document.addEventListener("DOMContentLoaded", function () {
       button.classList.remove("active");
     });
     category.classList.add("active");
+    currentPage = 1;
 
     if (category === todayBtn) {
       displayTodayStats();
     } else if (category === totalBtn) {
       displayTotalStats();
-    }
-  }
-
-  function updateSortButtonIcon() {
-    if (sortOrder === "descending") {
-      sortBtn.innerHTML = "<span>&#8595;</span>"; // Down arrow for descending
-      sortBtn.setAttribute("title", "Sort Descending");
-    } else {
-      sortBtn.innerHTML = "<span>&#8593;</span>"; // Up arrow for ascending
-      sortBtn.setAttribute("title", "Sort Ascending");
     }
   }
 
@@ -67,6 +73,59 @@ document.addEventListener("DOMContentLoaded", function () {
     timeDisplay += `${secs} ${secs === 1 ? "second" : "seconds"}`;
 
     return timeDisplay;
+  }
+
+  function updatePagination() {
+    // Update page number display
+    pageNumberDisplay.textContent = `${currentPage} of ${totalPages}`;
+
+    // Disable/enable pagination buttons
+    prevPageBtn.disabled = currentPage <= 1;
+    nextPageBtn.disabled = currentPage >= totalPages;
+
+    // Update visual state
+    prevPageBtn.classList.toggle("disabled", currentPage <= 1);
+    nextPageBtn.classList.toggle("disabled", currentPage >= totalPages);
+  }
+
+  function displayCurrentPage() {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = Math.min(startIndex + itemsPerPage, allSites.length);
+    const currentPageItems = allSites.slice(startIndex, endIndex);
+
+    // Create HTML for each site on current page
+    const infoHTML = currentPageItems
+      .map(([domain, data]) => {
+        const timeDisplay = formatTimeDisplay(data.time);
+        const sessionCount = data.sessions;
+
+        return `
+        <div class="stats-item">
+          <div class="site-info">
+            <img src="https://${domain}/favicon.ico" alt="${domain}" class="site-favicon" data-domain="${domain}" />
+            <span class="site-name">${domain}</span>
+          </div>
+          <div class="time-info">
+            <div class="time-spent">${timeDisplay}</div>
+            <div class="session-count">${sessionCount} ${
+          sessionCount === 1 ? "session" : "sessions"
+        }</div>
+          </div>
+        </div>
+      `;
+      })
+      .join("");
+
+    const sortStatusHTML = `<p class="sort-status">Sorting by ${filterBy}${
+      sortOrder === "ascending" ? " (ascending)" : " (descending)"
+    }</p>`;
+
+    infoContainer.innerHTML =
+      sortStatusHTML + infoHTML ||
+      '<div class="no-data">No browsing data available yet.</div>';
+
+    setupImageErrorHandlers();
+    updatePagination();
   }
 
   function createPieChart(category) {
@@ -221,42 +280,24 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       // Sort sites by time spent
-      const sortedSites = Object.entries(combinedData)
-        .sort((a, b) => {
+      allSites = Object.entries(combinedData).sort((a, b) => {
+        if (filterBy == "time") {
           return sortOrder === "descending"
             ? b[1].time - a[1].time
             : a[1].time - b[1].time;
-        })
-        .slice(0, 10); // Top 10 sites
+        } else {
+          return sortOrder === "descending"
+            ? b[1].sessions - a[1].sessions
+            : a[1].sessions - b[1].sessions;
+        }
+      });
 
-      // Create HTML for each site
-      const infoHTML = sortedSites
-        .map(([domain, data]) => {
-          const timeDisplay = formatTimeDisplay(data.time);
-          const sessionCount = data.sessions;
+      totalPages = Math.max(1, Math.ceil(allSites.length / itemsPerPage));
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
 
-          return `
-          <div class="stats-item">
-            <div class="site-info">
-              <img src="https://${domain}/favicon.ico" alt="${domain}" class="site-favicon" data-domain="${domain}" />
-              <span class="site-name">${domain}</span>
-            </div>
-            <div class="time-info">
-              <div class="time-spent">${timeDisplay}</div>
-              <div class="session-count">${sessionCount} ${
-            sessionCount === 1 ? "session" : "sessions"
-          }</div>
-            </div>
-          </div>
-        `;
-        })
-        .join("");
-
-      infoContainer.innerHTML =
-        infoHTML ||
-        '<div class="no-data">No browsing data for today yet.</div>';
-
-      setupImageErrorHandlers();
+      displayCurrentPage();
     });
   }
 
@@ -308,47 +349,32 @@ document.addEventListener("DOMContentLoaded", function () {
       });
 
       // Sort sites by time spent
-      const sortedSites = Object.entries(combinedData)
-        .sort((a, b) => {
+      allSites = Object.entries(combinedData).sort((a, b) => {
+        if (filterBy === "time") {
           return sortOrder === "descending"
             ? b[1].time - a[1].time
             : a[1].time - b[1].time;
-        })
-        .slice(0, 10); // Top 10 sites
+        } else {
+          return sortOrder === "descending"
+            ? b[1].sessions - a[1].sessions
+            : a[1].sessions - b[1].sessions;
+        }
+      });
 
-      // Create HTML for each site
-      const infoHTML = sortedSites
-        .map(([domain, data]) => {
-          const timeDisplay = formatTimeDisplay(data.time);
-          const sessionCount = data.sessions;
+      // Calculate total pages
+      totalPages = Math.max(1, Math.ceil(allSites.length / itemsPerPage));
 
-          return `
-          <div class="stats-item">
-            <div class="site-info">
-              <img src="https://${domain}/favicon.ico" alt="${domain}" class="site-favicon" data-domain="${domain}" />
-              <span class="site-name">${domain}</span>
-            </div>
-            <div class="time-info">
-              <div class="time-spent">${timeDisplay}</div>
-              <div class="session-count">${sessionCount} ${
-            sessionCount === 1 ? "session" : "sessions"
-          }</div>
-            </div>
-          </div>
-        `;
-        })
-        .join("");
+      // Ensure current page is valid
+      if (currentPage > totalPages) {
+        currentPage = totalPages;
+      }
 
-      infoContainer.innerHTML =
-        infoHTML ||
-        '<div class="no-data">No browsing data available yet.</div>';
-
-      setupImageErrorHandlers();
+      // Display current page items
+      displayCurrentPage();
     });
   }
 
   // initial function runs
-  updateSortButtonIcon();
   setCategoryActive(todayBtn);
 
   allCategories.forEach((button) => {
@@ -363,12 +389,36 @@ document.addEventListener("DOMContentLoaded", function () {
 
   sortBtn.addEventListener("click", function () {
     sortOrder = sortOrder === "descending" ? "ascending" : "descending";
-    updateSortButtonIcon();
     const currentCategory = document.querySelector(".categories .active");
     if (currentCategory === todayBtn) {
       displayTodayStats();
     } else if (currentCategory === totalBtn) {
       displayTotalStats();
+    }
+  });
+
+  filterBtn.addEventListener("click", function () {
+    filterBy = filterBy === "time" ? "session" : "time";
+    console.log(`the filter is: ${filterBy}`);
+    const currentCategory = document.querySelector(".categories .active");
+    if (currentCategory === todayBtn) {
+      displayTodayStats();
+    } else if (currentCategory === totalBtn) {
+      displayTotalStats();
+    }
+  });
+
+  prevPageBtn.addEventListener("click", function () {
+    if (currentPage > 1) {
+      currentPage--;
+      displayCurrentPage();
+    }
+  });
+
+  nextPageBtn.addEventListener("click", function () {
+    if (currentPage < totalPages) {
+      currentPage++;
+      displayCurrentPage();
     }
   });
 
