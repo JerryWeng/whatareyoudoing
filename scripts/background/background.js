@@ -37,6 +37,22 @@ function getDomain(url) {
   }
 }
 
+function getStorageData(key) {
+  return new Promise((resolve) => {
+    chrome.storage.local.get([key], (result) => {
+      resolve(result[key] || null);
+    });
+  });
+}
+
+function setStorageData(data) {
+  return new Promise((resolve) => {
+    chrome.storage.local.set(data, () => {
+      resolve();
+    });
+  });
+}
+
 // function to track time spent on the current tab (seconds)
 function trackTab(tab) {
   if (currentTab.intervalId) {
@@ -70,88 +86,88 @@ function trackTab(tab) {
 }
 
 // function to update both time and session
-function updateInfo(domain, seconds, date) {
+async function updateInfo(domain, seconds, date) {
   if (!domain || seconds <= 0) return;
   const today = date || getLocalDateString();
 
-  chrome.storage.local.get(["siteInfo"], (result) => {
-    let siteInfo = result.siteInfo || {};
+  let siteInfo = (await getStorageData("siteInfo")) || {};
 
-    if (!siteInfo[today]) {
-      siteInfo[today] = {
-        sessions: {},
-        time: {},
-      };
-      console.log("Created new entry for today:", today);
-    }
+  if (!siteInfo[today]) {
+    siteInfo[today] = {
+      sessions: {},
+      time: {},
+    };
+    console.log("Created new entry for today:", today);
+  }
 
-    if (!siteInfo[today].time) {
-      siteInfo[today].time = {};
-    }
-    if (!siteInfo[today].time[domain]) {
-      siteInfo[today].time[domain] = 1;
-    } else {
-      console.log(`Old time: ${siteInfo[today].time[domain]}`);
-      siteInfo[today].time[domain] += seconds;
-      console.log(
-        `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
-      );
-    }
+  if (!siteInfo[today].time) {
+    siteInfo[today].time = {};
+  }
+  if (!siteInfo[today].time[domain]) {
+    siteInfo[today].time[domain] = 1;
+  } else {
+    console.log(`Old time: ${siteInfo[today].time[domain]}`);
+    siteInfo[today].time[domain] += seconds;
+    console.log(
+      `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
+    );
+  }
 
-    if (!siteInfo[today].sessions) {
-      siteInfo[today].sessions = {};
-    }
-    if (!siteInfo[today].sessions[domain]) {
-      siteInfo[today].sessions[domain] = 1;
-    } else {
-      siteInfo[today].sessions[domain] += 1;
-      console.log(
-        `New session for ${domain}: ${siteInfo[today].sessions[domain]} sessions today`
-      );
-    }
+  if (!siteInfo[today].sessions) {
+    siteInfo[today].sessions = {};
+  }
+  if (!siteInfo[today].sessions[domain]) {
+    siteInfo[today].sessions[domain] = 1;
+  } else {
+    siteInfo[today].sessions[domain] += 1;
+    console.log(
+      `New session for ${domain}: ${siteInfo[today].sessions[domain]} sessions today`
+    );
+  }
 
-    chrome.storage.local.set({ siteInfo: siteInfo });
-    console.log("Updated site time and session:", siteInfo);
-  });
+  await setStorageData({ siteInfo: siteInfo });
+  console.log("Updated site time and session:", siteInfo);
 }
 
 // function to update specifically time
-function updateTime(domain, seconds, date) {
+async function updateTime(domain, seconds, date) {
   if (!domain || seconds <= 0) return;
   const today = date || getLocalDateString();
 
-  chrome.storage.local.get(["siteInfo"], (result) => {
-    let siteInfo = result.siteInfo || {};
+  let siteInfo = (await getStorageData("siteInfo")) || {};
 
-    if (!siteInfo[today]) {
-      siteInfo[today] = {
-        sessions: {},
-        time: {},
-      };
-      console.log("Created new entry for today:", today);
-    }
+  if (!siteInfo[today]) {
+    siteInfo[today] = {
+      sessions: {},
+      time: {},
+    };
+    console.log("Created new entry for today:", today);
+  }
 
-    if (!siteInfo[today].time) {
-      siteInfo[today].time = {};
-    }
-    if (!siteInfo[today].time[domain]) {
-      siteInfo[today].time[domain] = 1;
-    } else {
-      siteInfo[today].time[domain] += seconds;
-      console.log(
-        `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
-      );
-    }
+  if (!siteInfo[today].time) {
+    siteInfo[today].time = {};
+  }
+  if (!siteInfo[today].time[domain]) {
+    siteInfo[today].time[domain] = 1;
+  } else {
+    siteInfo[today].time[domain] += seconds;
+    console.log(
+      `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
+    );
+  }
 
-    chrome.storage.local.set({ siteInfo: siteInfo });
-    console.log("Updated site time", siteInfo);
-  });
+  await setStorageData({ siteInfo: siteInfo });
+  console.log("Updated site time", siteInfo);
 }
 
 // function to save the current tab information
-function saveInfo() {
+async function saveInfo() {
   if (currentTab.domain && currentTab.timeSpent > 0) {
-    updateInfo(currentTab.domain, currentTab.timeSpent, currentTab.currentDate);
+    await updateInfo(
+      currentTab.domain,
+      currentTab.timeSpent,
+      currentTab.currentDate
+    );
     console.log(
       `Saved ${currentTab.timeSpent} seconds and session to ${currentTab.domain}`
     );
@@ -160,9 +176,13 @@ function saveInfo() {
 }
 
 // function to save specfically time
-function saveTime() {
+async function saveTime() {
   if (currentTab.domain && currentTab.timeSpent > 0) {
-    updateTime(currentTab.domain, currentTab.timeSpent, currentTab.currentDate);
+    await updateTime(
+      currentTab.domain,
+      currentTab.timeSpent,
+      currentTab.currentDate
+    );
     console.log(
       `Saved ${currentTab.timeSpent} seconds to ${currentTab.domain}`
     );
@@ -171,10 +191,10 @@ function saveTime() {
 }
 
 // user switches to another tab ("activates" another tab)
-chrome.tabs.onActivated.addListener((activeInfo) => {
+chrome.tabs.onActivated.addListener(async (activeInfo) => {
   console.log("Tab activated:", activeInfo.tabId);
 
-  saveInfo();
+  await saveInfo();
   chrome.tabs.get(activeInfo.tabId, (tab) => {
     console.log("RUNNING");
     trackTab(tab);
@@ -182,7 +202,7 @@ chrome.tabs.onActivated.addListener((activeInfo) => {
 });
 
 // user switches to another domain
-chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (currentTab.id === tabId && changeInfo.url) {
     console.log("Tab URL updated:", tabId, changeInfo.url);
 
@@ -192,14 +212,14 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
 });
 
 // user switches to another chrome window
-chrome.windows.onFocusChanged.addListener((windowId) => {
+chrome.windows.onFocusChanged.addListener(async (windowId) => {
   console.log("Window focus changed:", windowId);
 
   if (windowId === chrome.windows.WINDOW_ID_NONE) {
     if (currentTab.intervalId) {
       clearInterval(currentTab.intervalId);
     }
-    saveInfo();
+    await saveInfo();
   } else {
     chrome.tabs.query({ active: true, windowId: windowId }, (tabs) => {
       if (tabs.length > 0) {
@@ -213,8 +233,16 @@ chrome.windows.onFocusChanged.addListener((windowId) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   console.log("Opened Extension");
   if (message.action === "saveTime") {
-    saveTime();
-    sendResponse({ success: true });
+    (async () => {
+      try {
+        await saveInfo();
+        sendResponse({ success: true });
+      } catch (error) {
+        console.error("Error saving time:", error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
   }
   return true; // Keep the message channel open for async response
 });
@@ -222,7 +250,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // saves data before the browser closes
 chrome.runtime.onSuspend.addListener(() => {
   console.log("Browser is closing, saving data...");
-  saveInfo();
+  saveInfo().catch((error) => {
+    console.error("Error saving data on suspend:", error);
+  });
 });
 
 // starts tracking tabs when chrome starts
