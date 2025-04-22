@@ -31,7 +31,29 @@ function initialize() {
 function getDomain(url) {
   try {
     const urlObj = new URL(url);
-    return urlObj.hostname;
+
+    // Filter out chrome:// URLs
+    if (urlObj.protocol === "chrome:") {
+      return null;
+    }
+
+    // Filter out about: URLs
+    if (urlObj.protocol === "about:") {
+      return null;
+    }
+
+    // Filter out file:// URLs
+    if (urlObj.protocol === "file:") {
+      return null;
+    }
+
+    // Only return domains for http: and https: protocols
+    if (urlObj.protocol === "http:" || urlObj.protocol === "https:") {
+      return urlObj.hostname;
+    }
+
+    // Any other protocol we don't want to track
+    return null;
   } catch (e) {
     return null;
   }
@@ -63,26 +85,30 @@ function trackTab(tab) {
   currentTab.domain = getDomain(tab.url);
   currentTab.timeSpent = 0;
 
-  currentTab.intervalId = setInterval(() => {
-    // check if date has changed if yes, save the current tab time and reset the time
-    const today = getLocalDateString();
+  if (currentTab.domain) {
+    currentTab.intervalId = setInterval(() => {
+      // check if date has changed if yes, save the current tab time and reset the time
+      const today = getLocalDateString();
 
-    if (today !== currentTab.currentDate) {
-      console.log(`Date changed from ${currentTab.currentDate} to ${today}`);
-      updateInfo(
-        currentTab.domain,
-        currentTab.timeSpent,
-        currentTab.currentDate
-      );
-      currentTab.timeSpent = 0;
-      currentTab.currentDate = today;
-    }
+      if (today !== currentTab.currentDate) {
+        console.log(`Date changed from ${currentTab.currentDate} to ${today}`);
+        updateInfo(
+          currentTab.domain,
+          currentTab.timeSpent,
+          currentTab.currentDate
+        );
+        currentTab.timeSpent = 0;
+        currentTab.currentDate = today;
+      }
 
-    currentTab.timeSpent += 1;
-    console.log(`Timespent: ${currentTab.timeSpent}`);
-  }, 1000);
+      currentTab.timeSpent += 1;
+      console.log(`Timespent: ${currentTab.timeSpent}`);
+    }, 1000);
 
-  console.log(`Now tracking tab: ${tab.id} (${currentTab.domain})`);
+    console.log(`Now tracking tab: ${tab.id} (${currentTab.domain})`);
+  } else {
+    console.log(`Not tracking tab: ${tab.id} (invalid domain)`);
+  }
 }
 
 // function to update both time and session
@@ -119,6 +145,7 @@ async function updateInfo(domain, seconds, date) {
   if (!siteInfo[today].sessions[domain]) {
     siteInfo[today].sessions[domain] = 1;
   } else {
+    console.log(`Old session: ${siteInfo[today].sessions[domain]}`);
     siteInfo[today].sessions[domain] += 1;
     console.log(
       `New session for ${domain}: ${siteInfo[today].sessions[domain]} sessions today`
@@ -150,6 +177,9 @@ async function updateTime(domain, seconds, date) {
   if (!siteInfo[today].time[domain]) {
     siteInfo[today].time[domain] = 1;
   } else {
+    console.log(
+      `Old time: ${siteInfo[today].time[domain]} (modifying just time)`
+    );
     siteInfo[today].time[domain] += seconds;
     console.log(
       `New time for ${domain}: ${siteInfo[today].time[domain]} time today`
@@ -196,7 +226,6 @@ chrome.tabs.onActivated.addListener(async (activeInfo) => {
 
   await saveInfo();
   chrome.tabs.get(activeInfo.tabId, (tab) => {
-    console.log("RUNNING");
     trackTab(tab);
   });
 });
@@ -235,7 +264,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.action === "saveTime") {
     (async () => {
       try {
-        await saveInfo();
+        // save just the time when user upens extension
+        await saveTime();
         sendResponse({ success: true });
       } catch (error) {
         console.error("Error saving time:", error);

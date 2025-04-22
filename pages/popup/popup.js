@@ -166,16 +166,16 @@ document.addEventListener("DOMContentLoaded", function () {
       const values = sortedSites.map(([, seconds]) => seconds);
 
       const backgroundColors = [
-        "rgba(255, 99, 132, 0.8)",
-        "rgba(54, 162, 235, 0.8)",
-        "rgba(255, 206, 86, 0.8)",
-        "rgba(75, 192, 192, 0.8)",
-        "rgba(153, 102, 255, 0.8)",
-        "rgba(255, 159, 64, 0.8)",
-        "rgba(201, 203, 207, 0.8)",
-        "rgba(255, 99, 255, 0.8)",
-        "rgba(99, 255, 132, 0.8)",
-        "rgba(132, 99, 255, 0.8)",
+        "rgba(220, 20, 60, 0.8)", // Crimson Red
+        "rgba(0, 128, 128, 0.8)", // Teal
+        "rgba(255, 165, 0, 0.8)", // Orange
+        "rgba(75, 0, 130, 0.8)", // Indigo
+        "rgba(50, 205, 50, 0.8)", // Lime Green
+        "rgba(255, 20, 147, 0.8)", // Deep Pink
+        "rgba(0, 71, 171, 0.8)", // Royal Blue
+        "rgba(128, 0, 128, 0.8)", // Purple
+        "rgba(210, 180, 140, 0.8)", // Tan
+        "rgba(0, 128, 0, 0.8)", // Green
       ];
 
       // Only create chart if we have data and canvas exists
