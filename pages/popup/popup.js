@@ -1,4 +1,7 @@
 document.addEventListener("DOMContentLoaded", function () {
+  // Establish connection with background script for popup close detection
+  const port = chrome.runtime.connect({ name: "popup" });
+
   // header elements
   const settingsBtn = document.getElementById("settingsBtn");
 

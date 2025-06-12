@@ -2,8 +2,8 @@
   "manifest_version": 3,
   "name": "whatareyoudoing",
   "version": "1.0",
-  "description": "Track time spent on websites like YouTube",
-  "permissions": ["storage", "tabs", "webNavigation", "alarms"],
+  "description": "Track time spent on websites and block distracting sites.",
+  "permissions": ["storage", "tabs", "activeTab", "webNavigation", "alarms"],
   "host_permissions": ["*://*/*"],
   "background": {
     "service_worker": "scripts/background/background.js",
