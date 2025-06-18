@@ -1,7 +1,4 @@
-// scripts/background/modules/storageManager.js
-
 class StorageManager {
-  // Get data from chrome storage
   async getStorageData(key) {
     return new Promise((resolve) => {
       chrome.storage.local.get([key], (result) => {
@@ -10,7 +7,6 @@ class StorageManager {
     });
   }
 
-  // Set data to chrome storage
   async setStorageData(data) {
     return new Promise((resolve) => {
       chrome.storage.local.set(data, () => {
@@ -19,7 +15,6 @@ class StorageManager {
     });
   }
 
-  // Update both time and increment session count
   async updateInfo(domain, seconds, date) {
     if (!domain || seconds <= 0) return;
 
@@ -30,13 +25,11 @@ class StorageManager {
       siteInfo[today] = { sessions: {}, time: {} };
     }
 
-    // Update time
     if (!siteInfo[today].time[domain]) {
       siteInfo[today].time[domain] = 0;
     }
     siteInfo[today].time[domain] += seconds;
 
-    // Increment session count
     if (!siteInfo[today].sessions[domain]) {
       siteInfo[today].sessions[domain] = 0;
     }
@@ -50,7 +43,6 @@ class StorageManager {
     return siteInfo[today];
   }
 
-  // Update only time (no session increment)
   async updateTimeOnly(domain, seconds, date) {
     if (!domain || seconds <= 0) return;
 
@@ -74,7 +66,6 @@ class StorageManager {
     return siteInfo[today];
   }
 
-  // Get total time spent on domain today
   async getTotalDomainTime(domain, date) {
     if (!domain) return 0;
 
@@ -92,7 +83,6 @@ class StorageManager {
     return 0;
   }
 
-  // Utility method for date string
   getLocalDateString() {
     const now = new Date();
     const year = now.getFullYear();

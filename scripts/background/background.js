@@ -1,5 +1,3 @@
-// scripts/background/background.js
-
 import StorageManager from "./modules/storageManager.js";
 import BadgeManager from "./modules/badgeManager.js";
 import TabTracker from "./modules/tabTracker.js";
