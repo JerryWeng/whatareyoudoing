@@ -3,7 +3,14 @@
   "name": "whatareyoudoing",
   "version": "1.0",
   "description": "Track time spent on websites and block distracting sites.",
-  "permissions": ["storage", "tabs", "activeTab", "webNavigation", "alarms"],
+  "permissions": [
+    "storage",
+    "tabs",
+    "activeTab",
+    "webNavigation",
+    "alarms",
+    "idle"
+  ],
   "host_permissions": ["*://*/*"],
   "background": {
     "service_worker": "scripts/background/background.js",
